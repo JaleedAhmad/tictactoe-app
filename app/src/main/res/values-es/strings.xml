@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TicTacToe</string>
+    <string name="player_x">Jugador X</string>
+    <string name="player_o">Jugador O</string>
+    <string name="reset">Reiniciar</string>
+    <string name="turn">Turno de %1$s</string>
+    <string name="wins">¡%1$s gana!</string>
+    <string name="draw">Empate</string>
+</resources>

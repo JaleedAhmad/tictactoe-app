@@ -1,0 +1,35 @@
+# Project-wide
+.gradle/
+.idea/
+build/
+local.properties
+*.iml
+
+# App-specific
+app/build/
+app/*.iml
+
+# Gradle
+.gradle/
+build/
+
+# Android Studio / IntelliJ
+*.iml
+.idea/
+.idea/libraries
+.idea/modules.xml
+.idea/workspace.xml
+.idea/navEditor.xml
+.idea/assetWizard.settings.xml
+
+# Built variants
+*.apk
+*.aar
+*.ap_
+*.aab
+*.zip
+
+# OS files
+.DS_Store
+Thumbs.db
+gradle-8.2-bin/

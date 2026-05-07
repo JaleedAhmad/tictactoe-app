@@ -1,0 +1,268 @@
+package com.example.tictactoe.viewmodel
+
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+
+enum class Player { X, O }
+enum class CellState { EMPTY, X, O }
+enum class GameMode { PVP, PVC }
+
+sealed class GameStatus {
+    object Initial : GameStatus()
+    data class PlayerTurn(val player: Player) : GameStatus()
+    data class PlayerWins(val player: Player) : GameStatus()
+    object Draw : GameStatus()
+}
+
+data class MatchRecord(
+    val winner: String,
+    val timestamp: Long
+)
+
+class GameViewModel(private val dataStore: DataStore<Preferences>) : ViewModel() {
+
+    val board = mutableStateListOf(
+        CellState.EMPTY, CellState.EMPTY, CellState.EMPTY,
+        CellState.EMPTY, CellState.EMPTY, CellState.EMPTY,
+        CellState.EMPTY, CellState.EMPTY, CellState.EMPTY
+    )
+
+    var currentPlayer = mutableStateOf(Player.X)
+        private set
+    var xScore = mutableStateOf(0)
+        private set
+    var oScore = mutableStateOf(0)
+        private set
+    var gameStatus = mutableStateOf<GameStatus>(GameStatus.PlayerTurn(Player.X))
+        private set
+    
+    var gameMode = mutableStateOf(GameMode.PVP)
+        private set
+    var playerXName = mutableStateOf("Player X")
+        private set
+    var playerOName = mutableStateOf("Player O")
+        private set
+    var isDarkMode = mutableStateOf<Boolean?>(null) // null means follow system
+        private set
+    var isSoundEnabled = mutableStateOf(true)
+        private set
+    var isVibrationEnabled = mutableStateOf(true)
+        private set
+
+    val matchHistory = mutableStateListOf<MatchRecord>()
+
+    private val X_SCORE_KEY = intPreferencesKey("x_score")
+    private val O_SCORE_KEY = intPreferencesKey("o_score")
+    private val HISTORY_KEY = stringPreferencesKey("match_history")
+    private val X_NAME_KEY = stringPreferencesKey("x_name")
+    private val O_NAME_KEY = stringPreferencesKey("o_name")
+    private val GAME_MODE_KEY = stringPreferencesKey("game_mode")
+    private val DARK_MODE_KEY = stringPreferencesKey("dark_mode")
+    private val SOUND_KEY = androidx.datastore.preferences.core.booleanPreferencesKey("sound")
+    private val VIBRATION_KEY = androidx.datastore.preferences.core.booleanPreferencesKey("vibration")
+
+    init {
+        loadData()
+    }
+
+    fun setGameMode(mode: GameMode) {
+        gameMode.value = mode
+        resetGame()
+        saveData()
+    }
+
+    fun updatePlayerNames(xName: String, oName: String) {
+        playerXName.value = xName.ifBlank { "Player X" }
+        playerOName.value = oName.ifBlank { "Player O" }
+        saveData()
+    }
+
+    fun toggleDarkMode(enabled: Boolean) {
+        isDarkMode.value = enabled
+        saveData()
+    }
+
+    fun toggleSound(enabled: Boolean) {
+        isSoundEnabled.value = enabled
+        saveData()
+    }
+
+    fun toggleVibration(enabled: Boolean) {
+        isVibrationEnabled.value = enabled
+        saveData()
+    }
+
+    fun makeMove(index: Int) {
+        val currentStatus = gameStatus.value
+        if (index !in 0..8 || board[index] != CellState.EMPTY || currentStatus is GameStatus.PlayerWins || currentStatus is GameStatus.Draw) return
+        
+        // Block player move if it's CPU's turn in PVC mode
+        if (gameMode.value == GameMode.PVC && currentPlayer.value == Player.O) return
+
+        executeMove(index)
+    }
+
+    private fun executeMove(index: Int) {
+        board[index] = if (currentPlayer.value == Player.X) CellState.X else CellState.O
+        
+        if (checkWinner()) {
+            val winnerName = if (currentPlayer.value == Player.X) playerXName.value else playerOName.value
+            if (currentPlayer.value == Player.X) xScore.value++ else oScore.value++
+            gameStatus.value = GameStatus.PlayerWins(currentPlayer.value)
+            recordMatch(winnerName)
+            saveData()
+        } else if (board.none { it == CellState.EMPTY }) {
+            gameStatus.value = GameStatus.Draw
+            recordMatch("Draw")
+            saveData()
+        } else {
+            currentPlayer.value = if (currentPlayer.value == Player.X) Player.O else Player.X
+            gameStatus.value = GameStatus.PlayerTurn(currentPlayer.value)
+            
+            // Trigger CPU move if in PVC mode and it's O's turn
+            if (gameMode.value == GameMode.PVC && currentPlayer.value == Player.O) {
+                viewModelScope.launch {
+                    delay(600) // Small delay for better UX
+                    val cpuIndex = getBestMove()
+                    if (cpuIndex != -1) executeMove(cpuIndex)
+                }
+            }
+        }
+    }
+
+    private fun getBestMove(): Int {
+        // Simple Minimax or just random for now? Let's go with a basic smart move:
+        // 1. Win if possible
+        // 2. Block opponent win if possible
+        // 3. Take center
+        // 4. Random
+        
+        val winMove = findWinningMove(CellState.O)
+        if (winMove != -1) return winMove
+        
+        val blockMove = findWinningMove(CellState.X)
+        if (blockMove != -1) return blockMove
+        
+        if (board[4] == CellState.EMPTY) return 4
+        
+        val emptyIndices = board.indices.filter { board[it] == CellState.EMPTY }
+        return if (emptyIndices.isNotEmpty()) emptyIndices.random() else -1
+    }
+
+    private fun findWinningMove(playerCell: CellState): Int {
+        val lines = listOf(
+            listOf(0,1,2), listOf(3,4,5), listOf(6,7,8),
+            listOf(0,3,6), listOf(1,4,7), listOf(2,5,8),
+            listOf(0,4,8), listOf(2,4,6)
+        )
+        for (line in lines) {
+            val states = line.map { board[it] }
+            if (states.count { it == playerCell } == 2 && states.count { it == CellState.EMPTY } == 1) {
+                return line[states.indexOf(CellState.EMPTY)]
+            }
+        }
+        return -1
+    }
+
+    private fun recordMatch(winner: String) {
+        val record = MatchRecord(winner, System.currentTimeMillis())
+        matchHistory.add(0, record)
+        saveData()
+    }
+
+    private fun checkWinner(): Boolean {
+        val lines = listOf(
+            listOf(0,1,2), listOf(3,4,5), listOf(6,7,8),
+            listOf(0,3,6), listOf(1,4,7), listOf(2,5,8),
+            listOf(0,4,8), listOf(2,4,6)
+        )
+        for (line in lines) {
+            val (a,b,c) = line
+            if (board[a] != CellState.EMPTY && board[a] == board[b] && board[a] == board[c]) return true
+        }
+        return false
+    }
+
+    fun resetGame() {
+        for (i in board.indices) board[i] = CellState.EMPTY
+        currentPlayer.value = Player.X
+        gameStatus.value = GameStatus.PlayerTurn(Player.X)
+    }
+
+    private fun loadData() {
+        viewModelScope.launch {
+            try {
+                val prefs = dataStore.data.first()
+                xScore.value = prefs[X_SCORE_KEY] ?: 0
+                oScore.value = prefs[O_SCORE_KEY] ?: 0
+                playerXName.value = prefs[X_NAME_KEY] ?: "Player X"
+                playerOName.value = prefs[O_NAME_KEY] ?: "Player O"
+                gameMode.value = GameMode.valueOf(prefs[GAME_MODE_KEY] ?: GameMode.PVP.name)
+                
+                val darkModeStr = prefs[DARK_MODE_KEY]
+                isDarkMode.value = if (darkModeStr == null) null else darkModeStr == "true"
+                
+                isSoundEnabled.value = prefs[SOUND_KEY] ?: true
+                isVibrationEnabled.value = prefs[VIBRATION_KEY] ?: true
+                
+                val historyStr = prefs[HISTORY_KEY] ?: ""
+                if (historyStr.isNotEmpty()) {
+                    val records = historyStr.split("|").mapNotNull {
+                        val parts = it.split(";")
+                        if (parts.size == 2) {
+                            MatchRecord(parts[0], parts[1].toLong())
+                        } else null
+                    }
+                    matchHistory.clear()
+                    matchHistory.addAll(records)
+                }
+            } catch (e: Exception) {}
+        }
+    }
+
+    private fun saveData() {
+        viewModelScope.launch {
+            try {
+                dataStore.edit { pref ->
+                    pref[X_SCORE_KEY] = xScore.value
+                    pref[O_SCORE_KEY] = oScore.value
+                    pref[X_NAME_KEY] = playerXName.value
+                    pref[O_NAME_KEY] = playerOName.value
+                    pref[GAME_MODE_KEY] = gameMode.value.name
+                    pref[DARK_MODE_KEY] = isDarkMode.value?.toString() ?: ""
+                    pref[SOUND_KEY] = isSoundEnabled.value
+                    pref[VIBRATION_KEY] = isVibrationEnabled.value
+                    val historyStr = matchHistory.joinToString("|") { "${it.winner};${it.timestamp}" }
+                    pref[HISTORY_KEY] = historyStr
+                }
+            } catch (e: Exception) {}
+        }
+    }
+
+    fun clearHistory() {
+        matchHistory.clear()
+        saveData()
+    }
+
+    fun resetAllData() {
+        viewModelScope.launch {
+            dataStore.edit { it.clear() }
+            xScore.value = 0
+            oScore.value = 0
+            playerXName.value = "Player X"
+            playerOName.value = "Player O"
+            matchHistory.clear()
+            resetGame()
+        }
+    }
+}
