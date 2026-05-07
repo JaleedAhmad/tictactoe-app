@@ -31,20 +31,38 @@ A premium, feature-rich Tic-Tac-Toe application built with modern Android develo
 - **Navigation:** [Compose Navigation](https://developer.android.com/jetpack/compose/navigation)
 - **Architecture:** MVVM (Model-View-ViewModel)
 
-## 🚀 Getting Started
+## 🚀 Developer Setup & Environment
 
-### Prerequisites
-- Android Studio Hedgehog or newer
-- JDK 17+
-- Android SDK 34 (API Level 34)
+To set up the development environment and build the project from scratch, follow these steps:
 
-### Installation
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/YOUR_USERNAME/tictactoe-android.git
-   ```
-2. Open the project in Android Studio.
-3. Build and run the app on an emulator or physical device.
+### 1. Environment Requirements
+- **JDK:** Java Development Kit 17
+- **Android SDK:** API Level 34 (Upside Down Cake)
+- **Build System:** Gradle 8.2
+
+### 2. Clone & Setup
+```bash
+# Clone the repository
+git clone https://github.com/JaleedAhmad/tictactoe-app.git
+cd tictactoe-app
+
+# Grant execution permissions to the Gradle wrapper
+chmod +x gradlew
+```
+
+### 3. Build & Run Commands
+
+| Goal | Command |
+| :--- | :--- |
+| **Clean Project** | `./gradlew clean` |
+| **Build Debug APK** | `./gradlew assembleDebug` |
+| **Run Unit Tests** | `./gradlew test` |
+| **Install on Device** | `./gradlew installDebug` |
+
+The generated APK will be located at:  
+`app/build/outputs/apk/debug/app-debug.apk`
+
+---
 
 ## 📸 Screenshots
 
