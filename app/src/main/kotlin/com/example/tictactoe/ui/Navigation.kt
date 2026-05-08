@@ -25,7 +25,8 @@ fun TicTacToeNavHost(
         composable(Screen.ModeSelection.route) {
             ModeSelectionScreen(
                 viewModel = viewModel,
-                onNavigateToGame = { navController.navigate(Screen.Game.route) }
+                onNavigateToGame = { navController.navigate(Screen.Game.route) },
+                onNavigateToSettings = { navController.navigate(Screen.Settings.route) }
             )
         }
         composable(Screen.Game.route) {

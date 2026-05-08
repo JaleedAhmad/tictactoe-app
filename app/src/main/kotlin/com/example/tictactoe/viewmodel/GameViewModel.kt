@@ -16,6 +16,7 @@ import kotlinx.coroutines.launch
 enum class Player { X, O }
 enum class CellState { EMPTY, X, O }
 enum class GameMode { PVP, PVC }
+enum class Difficulty { EASY, MEDIUM, HARD }
 
 sealed class GameStatus {
     object Initial : GameStatus()
@@ -31,11 +32,8 @@ data class MatchRecord(
 
 class GameViewModel(private val dataStore: DataStore<Preferences>) : ViewModel() {
 
-    val board = mutableStateListOf(
-        CellState.EMPTY, CellState.EMPTY, CellState.EMPTY,
-        CellState.EMPTY, CellState.EMPTY, CellState.EMPTY,
-        CellState.EMPTY, CellState.EMPTY, CellState.EMPTY
-    )
+    var board = mutableStateOf<List<CellState>>(List(9) { CellState.EMPTY })
+        private set
 
     var currentPlayer = mutableStateOf(Player.X)
         private set
@@ -58,7 +56,10 @@ class GameViewModel(private val dataStore: DataStore<Preferences>) : ViewModel()
         private set
     var isVibrationEnabled = mutableStateOf(true)
         private set
-
+    
+    var cpuDifficulty = mutableStateOf(Difficulty.MEDIUM)
+        private set
+    
     val matchHistory = mutableStateListOf<MatchRecord>()
 
     private val X_SCORE_KEY = intPreferencesKey("x_score")
@@ -70,6 +71,7 @@ class GameViewModel(private val dataStore: DataStore<Preferences>) : ViewModel()
     private val DARK_MODE_KEY = stringPreferencesKey("dark_mode")
     private val SOUND_KEY = androidx.datastore.preferences.core.booleanPreferencesKey("sound")
     private val VIBRATION_KEY = androidx.datastore.preferences.core.booleanPreferencesKey("vibration")
+    private val DIFFICULTY_KEY = stringPreferencesKey("cpu_difficulty")
 
     init {
         loadData()
@@ -102,9 +104,14 @@ class GameViewModel(private val dataStore: DataStore<Preferences>) : ViewModel()
         saveData()
     }
 
+    fun setCpuDifficulty(difficulty: Difficulty) {
+        cpuDifficulty.value = difficulty
+        saveData()
+    }
+
     fun makeMove(index: Int) {
         val currentStatus = gameStatus.value
-        if (index !in 0..8 || board[index] != CellState.EMPTY || currentStatus is GameStatus.PlayerWins || currentStatus is GameStatus.Draw) return
+        if (index !in 0..8 || board.value[index] != CellState.EMPTY || currentStatus is GameStatus.PlayerWins || currentStatus is GameStatus.Draw) return
         
         // Block player move if it's CPU's turn in PVC mode
         if (gameMode.value == GameMode.PVC && currentPlayer.value == Player.O) return
@@ -113,15 +120,20 @@ class GameViewModel(private val dataStore: DataStore<Preferences>) : ViewModel()
     }
 
     private fun executeMove(index: Int) {
-        board[index] = if (currentPlayer.value == Player.X) CellState.X else CellState.O
+        val newBoard = board.value.toMutableList()
+        newBoard[index] = if (currentPlayer.value == Player.X) CellState.X else CellState.O
+        board.value = newBoard
         
         if (checkWinner()) {
             val winnerName = if (currentPlayer.value == Player.X) playerXName.value else playerOName.value
             if (currentPlayer.value == Player.X) xScore.value++ else oScore.value++
+            
+            board.value = List(9) { CellState.EMPTY }
             gameStatus.value = GameStatus.PlayerWins(currentPlayer.value)
             recordMatch(winnerName)
             saveData()
-        } else if (board.none { it == CellState.EMPTY }) {
+        } else if (board.value.none { it == CellState.EMPTY }) {
+            board.value = List(9) { CellState.EMPTY }
             gameStatus.value = GameStatus.Draw
             recordMatch("Draw")
             saveData()
@@ -141,22 +153,69 @@ class GameViewModel(private val dataStore: DataStore<Preferences>) : ViewModel()
     }
 
     private fun getBestMove(): Int {
-        // Simple Minimax or just random for now? Let's go with a basic smart move:
-        // 1. Win if possible
-        // 2. Block opponent win if possible
-        // 3. Take center
-        // 4. Random
-        
-        val winMove = findWinningMove(CellState.O)
-        if (winMove != -1) return winMove
-        
-        val blockMove = findWinningMove(CellState.X)
-        if (blockMove != -1) return blockMove
-        
-        if (board[4] == CellState.EMPTY) return 4
-        
-        val emptyIndices = board.indices.filter { board[it] == CellState.EMPTY }
-        return if (emptyIndices.isNotEmpty()) emptyIndices.random() else -1
+        return when (cpuDifficulty.value) {
+            Difficulty.EASY -> {
+                val emptyIndices = board.value.indices.filter { board.value[it] == CellState.EMPTY }
+                if (emptyIndices.isNotEmpty()) emptyIndices.random() else -1
+            }
+            Difficulty.MEDIUM -> {
+                // Current smart but not perfect logic
+                val winMove = findWinningMove(CellState.O)
+                if (winMove != -1) return winMove
+                
+                val blockMove = findWinningMove(CellState.X)
+                if (blockMove != -1) return blockMove
+                
+                if (board.value[4] == CellState.EMPTY) return 4
+                
+                val emptyIndices = board.value.indices.filter { board.value[it] == CellState.EMPTY }
+                if (emptyIndices.isNotEmpty()) emptyIndices.random() else -1
+            }
+            Difficulty.HARD -> {
+                minimax(board.value, CellState.O).index
+            }
+        }
+    }
+
+    private data class Move(val index: Int, val score: Int)
+
+    private fun minimax(currentBoard: List<CellState>, player: CellState): Move {
+        val availableIndices = currentBoard.indices.filter { currentBoard[it] == CellState.EMPTY }
+
+        // Check terminal states
+        if (checkWin(currentBoard, CellState.X)) return Move(-1, -10)
+        if (checkWin(currentBoard, CellState.O)) return Move(-1, 10)
+        if (availableIndices.isEmpty()) return Move(-1, 0)
+
+        val moves = mutableListOf<Move>()
+
+        for (index in availableIndices) {
+            val nextBoard = currentBoard.toMutableList()
+            nextBoard[index] = player
+            
+            val score = if (player == CellState.O) {
+                minimax(nextBoard, CellState.X).score
+            } else {
+                minimax(nextBoard, CellState.O).score
+            }
+            
+            moves.add(Move(index, score))
+        }
+
+        return if (player == CellState.O) {
+            moves.maxBy { it.score }
+        } else {
+            moves.minBy { it.score }
+        }
+    }
+
+    private fun checkWin(b: List<CellState>, p: CellState): Boolean {
+        val lines = listOf(
+            listOf(0,1,2), listOf(3,4,5), listOf(6,7,8),
+            listOf(0,3,6), listOf(1,4,7), listOf(2,5,8),
+            listOf(0,4,8), listOf(2,4,6)
+        )
+        return lines.any { line -> line.all { b[it] == p } }
     }
 
     private fun findWinningMove(playerCell: CellState): Int {
@@ -166,7 +225,7 @@ class GameViewModel(private val dataStore: DataStore<Preferences>) : ViewModel()
             listOf(0,4,8), listOf(2,4,6)
         )
         for (line in lines) {
-            val states = line.map { board[it] }
+            val states = line.map { board.value[it] }
             if (states.count { it == playerCell } == 2 && states.count { it == CellState.EMPTY } == 1) {
                 return line[states.indexOf(CellState.EMPTY)]
             }
@@ -188,13 +247,13 @@ class GameViewModel(private val dataStore: DataStore<Preferences>) : ViewModel()
         )
         for (line in lines) {
             val (a,b,c) = line
-            if (board[a] != CellState.EMPTY && board[a] == board[b] && board[a] == board[c]) return true
+            if (board.value[a] != CellState.EMPTY && board.value[a] == board.value[b] && board.value[a] == board.value[c]) return true
         }
         return false
     }
 
     fun resetGame() {
-        for (i in board.indices) board[i] = CellState.EMPTY
+        board.value = List(9) { CellState.EMPTY }
         currentPlayer.value = Player.X
         gameStatus.value = GameStatus.PlayerTurn(Player.X)
     }
@@ -214,6 +273,8 @@ class GameViewModel(private val dataStore: DataStore<Preferences>) : ViewModel()
                 
                 isSoundEnabled.value = prefs[SOUND_KEY] ?: true
                 isVibrationEnabled.value = prefs[VIBRATION_KEY] ?: true
+                
+                cpuDifficulty.value = Difficulty.valueOf(prefs[DIFFICULTY_KEY] ?: Difficulty.MEDIUM.name)
                 
                 val historyStr = prefs[HISTORY_KEY] ?: ""
                 if (historyStr.isNotEmpty()) {
@@ -242,6 +303,7 @@ class GameViewModel(private val dataStore: DataStore<Preferences>) : ViewModel()
                     pref[DARK_MODE_KEY] = isDarkMode.value?.toString() ?: ""
                     pref[SOUND_KEY] = isSoundEnabled.value
                     pref[VIBRATION_KEY] = isVibrationEnabled.value
+                    pref[DIFFICULTY_KEY] = cpuDifficulty.value.name
                     val historyStr = matchHistory.joinToString("|") { "${it.winner};${it.timestamp}" }
                     pref[HISTORY_KEY] = historyStr
                 }
@@ -261,6 +323,7 @@ class GameViewModel(private val dataStore: DataStore<Preferences>) : ViewModel()
             oScore.value = 0
             playerXName.value = "Player X"
             playerOName.value = "Player O"
+            cpuDifficulty.value = Difficulty.MEDIUM
             matchHistory.clear()
             resetGame()
         }

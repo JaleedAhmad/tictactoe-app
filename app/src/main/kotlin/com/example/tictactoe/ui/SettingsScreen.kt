@@ -98,6 +98,20 @@ fun SettingsScreen(
             )
 
             Spacer(modifier = Modifier.height(24.dp))
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // ADVANCED SETTINGS Section
+            SettingsHeader("ADVANCED FEATURES")
+
+            DifficultySelector(
+                currentDifficulty = viewModel.cpuDifficulty.value,
+                onDifficultySelected = { viewModel.setCpuDifficulty(it) }
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+
 
             Button(
                 onClick = {
@@ -138,19 +152,33 @@ fun SettingsHeader(text: String) {
 }
 
 @Composable
-fun SettingsSwitchItem(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+fun SettingsSwitchItem(
+    label: String,
+    description: String? = null,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(56.dp),
+            .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurface
-        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            if (description != null) {
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
@@ -159,5 +187,41 @@ fun SettingsSwitchItem(label: String, checked: Boolean, onCheckedChange: (Boolea
                 checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
             )
         )
+    }
+}
+
+@Composable
+fun DifficultySelector(
+    currentDifficulty: com.example.tictactoe.viewmodel.Difficulty,
+    onDifficultySelected: (com.example.tictactoe.viewmodel.Difficulty) -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = stringResource(R.string.cpu_difficulty),
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            com.example.tictactoe.viewmodel.Difficulty.values().forEach { difficulty ->
+                val isSelected = currentDifficulty == difficulty
+                FilterChip(
+                    selected = isSelected,
+                    onClick = { onDifficultySelected(difficulty) },
+                    label = { 
+                        Text(
+                            when(difficulty) {
+                                com.example.tictactoe.viewmodel.Difficulty.EASY -> stringResource(R.string.difficulty_easy)
+                                com.example.tictactoe.viewmodel.Difficulty.MEDIUM -> stringResource(R.string.difficulty_medium)
+                                com.example.tictactoe.viewmodel.Difficulty.HARD -> stringResource(R.string.difficulty_hard)
+                            }
+                        ) 
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
     }
 }

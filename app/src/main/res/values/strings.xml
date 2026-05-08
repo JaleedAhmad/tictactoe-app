@@ -26,4 +26,13 @@
     <string name="dark_mode">Dark Mode</string>
     <string name="sound_effects">Sound Effects</string>
     <string name="vibration">Vibration</string>
+    <string name="cpu_difficulty">CPU Difficulty</string>
+    <string name="difficulty_easy">Easy</string>
+    <string name="difficulty_medium">Medium</string>
+    <string name="difficulty_hard">Hard</string>
+    <string name="easy_desc">CPU makes random moves</string>
+    <string name="medium_desc">CPU plays smart but beatable</string>
+    <string name="hard_desc">CPU is unbeatable</string>
+    <string name="persistent_blocks">Persistent Blocks</string>
+    <string name="persistent_blocks_desc">Lock cells used in previous game</string>
 </resources>

@@ -22,7 +22,7 @@ import com.example.tictactoe.viewmodel.GameStatus
 import com.example.tictactoe.viewmodel.Player
 
 @Composable
-fun GameBoard(viewModel: GameViewModel) {
+fun GameBoard(viewModel: GameViewModel, onMoveMade: () -> Unit = {}) {
     Surface(
         modifier = Modifier.padding(16.dp),
         color = MaterialTheme.colorScheme.background
@@ -36,8 +36,15 @@ fun GameBoard(viewModel: GameViewModel) {
                     for (col in 0 until 3) {
                         val index = row * 3 + col
                         Cell(
-                            state = viewModel.board[index],
-                            onClick = { viewModel.makeMove(index) }
+                            state = viewModel.board.value[index],
+                            onClick = {
+                                val wasEmpty = viewModel.board.value[index] == CellState.EMPTY
+                                viewModel.makeMove(index)
+                                // Only trigger feedback if the cell was actually empty and the move was valid
+                                if (wasEmpty && viewModel.board.value[index] != CellState.EMPTY) {
+                                    onMoveMade()
+                                }
+                            }
                         )
                     }
                 }
@@ -52,11 +59,13 @@ fun Cell(state: CellState, onClick: () -> Unit) {
         CellState.EMPTY -> MaterialTheme.colorScheme.surface
         CellState.X -> MaterialTheme.colorScheme.primaryContainer
         CellState.O -> MaterialTheme.colorScheme.secondaryContainer
+        else -> MaterialTheme.colorScheme.surface
     }
     val contentColor = when (state) {
         CellState.EMPTY -> Color.Transparent
-        CellState.X -> MaterialTheme.colorScheme.onPrimaryContainer
-        CellState.O -> MaterialTheme.colorScheme.onSecondaryContainer
+        CellState.X -> MaterialTheme.colorScheme.primary
+        CellState.O -> MaterialTheme.colorScheme.secondary
+        else -> Color.Transparent
     }
     val borderColor = if (state == CellState.EMPTY) {
         MaterialTheme.colorScheme.outlineVariant

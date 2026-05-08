@@ -4,8 +4,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -14,18 +15,39 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.tictactoe.R
+import com.example.tictactoe.viewmodel.Difficulty
 import com.example.tictactoe.viewmodel.GameMode
 import com.example.tictactoe.viewmodel.GameViewModel
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ModeSelectionScreen(
     viewModel: GameViewModel,
-    onNavigateToGame: () -> Unit
+    onNavigateToGame: () -> Unit,
+    onNavigateToSettings: () -> Unit
 ) {
+    var showDifficultyDialog by remember { mutableStateOf(false) }
+
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
     ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            IconButton(
+                onClick = onNavigateToSettings,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .statusBarsPadding()
+                    .padding(16.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Settings,
+                    contentDescription = "Settings",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(32.dp)
+                )
+            }
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -69,9 +91,115 @@ fun ModeSelectionScreen(
                 containerColor = MaterialTheme.colorScheme.secondaryContainer,
                 contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
                 onClick = {
-                    viewModel.setGameMode(GameMode.PVC)
-                    onNavigateToGame()
+                    showDifficultyDialog = true
                 }
+            )
+        }
+        }
+    }
+
+    // Difficulty picker dialog
+    if (showDifficultyDialog) {
+        AlertDialog(
+            onDismissRequest = { showDifficultyDialog = false },
+            title = {
+                Text(
+                    text = stringResource(R.string.cpu_difficulty),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    DifficultyOptionButton(
+                        label = stringResource(R.string.difficulty_easy),
+                        description = stringResource(R.string.easy_desc),
+                        isSelected = viewModel.cpuDifficulty.value == Difficulty.EASY,
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                        onClick = {
+                            viewModel.setCpuDifficulty(Difficulty.EASY)
+                            viewModel.setGameMode(GameMode.PVC)
+                            showDifficultyDialog = false
+                            onNavigateToGame()
+                        }
+                    )
+                    DifficultyOptionButton(
+                        label = stringResource(R.string.difficulty_medium),
+                        description = stringResource(R.string.medium_desc),
+                        isSelected = viewModel.cpuDifficulty.value == Difficulty.MEDIUM,
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                        onClick = {
+                            viewModel.setCpuDifficulty(Difficulty.MEDIUM)
+                            viewModel.setGameMode(GameMode.PVC)
+                            showDifficultyDialog = false
+                            onNavigateToGame()
+                        }
+                    )
+                    DifficultyOptionButton(
+                        label = stringResource(R.string.difficulty_hard),
+                        description = stringResource(R.string.hard_desc),
+                        isSelected = viewModel.cpuDifficulty.value == Difficulty.HARD,
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                        onClick = {
+                            viewModel.setCpuDifficulty(Difficulty.HARD)
+                            viewModel.setGameMode(GameMode.PVC)
+                            showDifficultyDialog = false
+                            onNavigateToGame()
+                        }
+                    )
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showDifficultyDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+}
+
+@Composable
+fun DifficultyOptionButton(
+    label: String,
+    description: String,
+    isSelected: Boolean,
+    containerColor: androidx.compose.ui.graphics.Color,
+    contentColor: androidx.compose.ui.graphics.Color,
+    onClick: () -> Unit
+) {
+    val borderStroke = if (isSelected) {
+        androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+    } else null
+
+    Card(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = containerColor),
+        shape = MaterialTheme.shapes.medium,
+        border = borderStroke
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = contentColor
+            )
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color = contentColor.copy(alpha = 0.7f)
             )
         }
     }

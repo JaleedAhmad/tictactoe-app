@@ -10,11 +10,11 @@ A premium, feature-rich Tic-Tac-Toe application built with modern Android develo
 
 - **🎮 Dual Game Modes:**
   - **Player vs Player:** Challenge a friend locally on the same device.
-  - **Player vs CPU:** Test your skills against an intelligent AI with strategic move prioritization.
+  - **Player vs CPU:** Test your skills against an AI with 3 adjustable difficulty levels (Easy, Medium, Hard) featuring minimax integration.
 - **⚙️ Deep Customization:**
   - Personalized player names for both X and O.
   - **Dark Mode Support:** Toggle between premium light and midnight dark themes.
-  - Haptic feedback and sound effect controls.
+  - Robust haptic feedback and custom sound effect controls (bypasses device touch-sound limitations).
 - **📜 Match History:** Keep track of your past victories and draws with a detailed history log.
 - **🏆 Premium UI/UX:**
   - Full-screen glassmorphic result overlays.
