@@ -106,6 +106,11 @@ fun StatusToast(viewModel: GameViewModel) {
             val name = if (status.player == Player.X) viewModel.playerXName.value else viewModel.playerOName.value
             stringResource(R.string.turn, name)
         }
+        is GameStatus.Initial -> {
+            if (viewModel.gameMode.value == com.example.tictactoe.viewmodel.GameMode.ONLINE) {
+                "Waiting for opponent..."
+            } else ""
+        }
         else -> ""
     }
 

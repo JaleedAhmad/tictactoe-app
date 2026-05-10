@@ -5,6 +5,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,7 +25,8 @@ import com.example.tictactoe.viewmodel.GameViewModel
 fun ModeSelectionScreen(
     viewModel: GameViewModel,
     onNavigateToGame: () -> Unit,
-    onNavigateToSettings: () -> Unit
+    onNavigateToSettings: () -> Unit,
+    onNavigateToOnline: () -> Unit
 ) {
     var showDifficultyDialog by remember { mutableStateOf(false) }
 
@@ -93,6 +95,16 @@ fun ModeSelectionScreen(
                 onClick = {
                     showDifficultyDialog = true
                 }
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            ModeButton(
+                title = "Play Online",
+                icon = Icons.Default.Share,
+                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                onClick = onNavigateToOnline
             )
         }
         }

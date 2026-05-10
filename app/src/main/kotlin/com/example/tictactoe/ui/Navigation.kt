@@ -11,6 +11,7 @@ sealed class Screen(val route: String) {
     object Game : Screen("game")
     object History : Screen("history")
     object Settings : Screen("settings")
+    object OnlineMatchmaking : Screen("online_matchmaking")
 }
 
 @Composable
@@ -26,7 +27,8 @@ fun TicTacToeNavHost(
             ModeSelectionScreen(
                 viewModel = viewModel,
                 onNavigateToGame = { navController.navigate(Screen.Game.route) },
-                onNavigateToSettings = { navController.navigate(Screen.Settings.route) }
+                onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
+                onNavigateToOnline = { navController.navigate(Screen.OnlineMatchmaking.route) }
             )
         }
         composable(Screen.Game.route) {
@@ -46,6 +48,13 @@ fun TicTacToeNavHost(
         composable(Screen.Settings.route) {
             SettingsScreen(
                 viewModel = viewModel,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+        composable(Screen.OnlineMatchmaking.route) {
+            OnlineMatchmakingScreen(
+                viewModel = viewModel,
+                onNavigateToGame = { navController.navigate(Screen.Game.route) },
                 onNavigateBack = { navController.popBackStack() }
             )
         }

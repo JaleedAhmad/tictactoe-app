@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     kotlin("android")
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -46,6 +47,13 @@ dependencies {
     implementation("androidx.datastore:datastore-preferences:1.1.1")
     // Google Fonts support
     implementation("androidx.compose.ui:ui-text-google-fonts:1.6.6")
+    
+    // Multiplayer dependencies
+    implementation(platform("com.google.firebase:firebase-bom:32.8.0"))
+    implementation("com.google.firebase:firebase-database")
+    implementation("com.google.firebase:firebase-auth")
+    implementation("com.google.code.gson:gson:2.10.1")
+
     debugImplementation("androidx.compose.ui:ui-tooling:1.6.6")
     testImplementation("junit:junit:4.13.2")
     testImplementation("io.mockk:mockk:1.13.10")

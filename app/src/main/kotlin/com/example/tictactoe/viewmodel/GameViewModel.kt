@@ -15,7 +15,7 @@ import kotlinx.coroutines.launch
 
 enum class Player { X, O }
 enum class CellState { EMPTY, X, O }
-enum class GameMode { PVP, PVC }
+enum class GameMode { PVP, PVC, ONLINE }
 enum class Difficulty { EASY, MEDIUM, HARD }
 
 sealed class GameStatus {
@@ -43,6 +43,9 @@ class GameViewModel(private val dataStore: DataStore<Preferences>) : ViewModel()
         private set
     var gameStatus = mutableStateOf<GameStatus>(GameStatus.PlayerTurn(Player.X))
         private set
+
+    var isLoading = mutableStateOf(false)
+        private set
     
     var gameMode = mutableStateOf(GameMode.PVP)
         private set
@@ -59,6 +62,20 @@ class GameViewModel(private val dataStore: DataStore<Preferences>) : ViewModel()
     
     var cpuDifficulty = mutableStateOf(Difficulty.MEDIUM)
         private set
+
+    // Online Multiplayer State
+    var roomCode = mutableStateOf("")
+        private set
+    var isHost = mutableStateOf(false)
+        private set
+    var isConnected = mutableStateOf(false)
+        private set
+    var connectionError = mutableStateOf("")
+        private set
+    var onlinePlayer = mutableStateOf<Player?>(null) // Which player am I in the online match?
+        private set
+    
+    private val firebaseManager = com.example.tictactoe.util.FirebaseManager()
     
     val matchHistory = mutableStateListOf<MatchRecord>()
 
@@ -75,12 +92,107 @@ class GameViewModel(private val dataStore: DataStore<Preferences>) : ViewModel()
 
     init {
         loadData()
+        viewModelScope.launch {
+            firebaseManager.messageFlow.collect { message ->
+                handleNetworkMessage(message)
+            }
+        }
     }
 
     fun setGameMode(mode: GameMode) {
+        if (gameMode.value == GameMode.ONLINE && mode != GameMode.ONLINE) {
+            leaveGame()
+        }
         gameMode.value = mode
         resetGame()
         saveData()
+    }
+
+    fun hostGame() {
+        setGameMode(GameMode.ONLINE)
+        isHost.value = true
+        onlinePlayer.value = Player.X
+        roomCode.value = (10000..99999).random().toString()
+        isConnected.value = false
+        connectionError.value = ""
+        isLoading.value = true
+        
+        firebaseManager.connect(roomCode.value) { success, errorMsg ->
+            isLoading.value = false
+            if (success) {
+                isConnected.value = true
+                gameStatus.value = GameStatus.Initial // Waiting for opponent
+            } else {
+                connectionError.value = "Failed to connect: $errorMsg"
+            }
+        }
+    }
+
+    fun joinGame(code: String) {
+        if (code.isBlank()) return
+        setGameMode(GameMode.ONLINE)
+        isHost.value = false
+        onlinePlayer.value = Player.O
+        roomCode.value = code
+        isConnected.value = false
+        connectionError.value = ""
+        gameStatus.value = GameStatus.Initial // reset before connecting
+        isLoading.value = true
+        
+        firebaseManager.connect(code) { success, errorMsg ->
+            if (success) {
+                // Tell the host we joined
+                firebaseManager.sendMessage(com.example.tictactoe.util.GameMessage("JOIN", player = "O")) { messageSent ->
+                    isLoading.value = false
+                    if (messageSent) {
+                        isConnected.value = true
+                        gameStatus.value = GameStatus.PlayerTurn(Player.X)
+                    } else {
+                        connectionError.value = "Failed to send join message. Check database rules."
+                    }
+                }
+            } else {
+                isLoading.value = false
+                connectionError.value = "Failed to connect: $errorMsg"
+            }
+        }
+    }
+
+    fun leaveGame() {
+        if (isConnected.value) {
+            firebaseManager.sendMessage(com.example.tictactoe.util.GameMessage("QUIT"))
+            firebaseManager.disconnect()
+        }
+        isConnected.value = false
+        roomCode.value = ""
+        onlinePlayer.value = null
+        if (gameMode.value == GameMode.ONLINE) {
+            gameMode.value = GameMode.PVP
+            resetGame()
+        }
+    }
+
+    private fun handleNetworkMessage(message: com.example.tictactoe.util.GameMessage) {
+        when (message.type) {
+            "JOIN" -> {
+                if (isHost.value) {
+                    gameStatus.value = GameStatus.PlayerTurn(Player.X)
+                }
+            }
+            "MOVE" -> {
+                val playerWhoseMoveItWas = if (message.player == "X") Player.X else Player.O
+                if (playerWhoseMoveItWas != onlinePlayer.value) {
+                    executeMove(message.moveIndex, isNetworkMove = true)
+                }
+            }
+            "RESTART" -> {
+                resetGame(isNetworkReset = true)
+            }
+            "QUIT" -> {
+                leaveGame()
+                connectionError.value = "Opponent disconnected"
+            }
+        }
     }
 
     fun updatePlayerNames(xName: String, oName: String) {
@@ -115,11 +227,19 @@ class GameViewModel(private val dataStore: DataStore<Preferences>) : ViewModel()
         
         // Block player move if it's CPU's turn in PVC mode
         if (gameMode.value == GameMode.PVC && currentPlayer.value == Player.O) return
+        
+        // Block player move if it's not their turn in ONLINE mode
+        if (gameMode.value == GameMode.ONLINE && currentPlayer.value != onlinePlayer.value) return
+        if (gameMode.value == GameMode.ONLINE && !isConnected.value) return
+        if (gameMode.value == GameMode.ONLINE && currentStatus == GameStatus.Initial) return // Waiting for opponent
 
-        executeMove(index)
+        executeMove(index, isNetworkMove = false)
     }
 
-    private fun executeMove(index: Int) {
+    private fun executeMove(index: Int, isNetworkMove: Boolean = false) {
+        if (gameMode.value == GameMode.ONLINE && !isNetworkMove) {
+            firebaseManager.sendMessage(com.example.tictactoe.util.GameMessage("MOVE", moveIndex = index, player = currentPlayer.value.name))
+        }
         val newBoard = board.value.toMutableList()
         newBoard[index] = if (currentPlayer.value == Player.X) CellState.X else CellState.O
         board.value = newBoard
@@ -252,10 +372,25 @@ class GameViewModel(private val dataStore: DataStore<Preferences>) : ViewModel()
         return false
     }
 
-    fun resetGame() {
+    fun resetGame(isNetworkReset: Boolean = false) {
+        if (gameMode.value == GameMode.ONLINE && !isNetworkReset && isConnected.value) {
+            firebaseManager.sendMessage(com.example.tictactoe.util.GameMessage("RESTART"))
+        }
         board.value = List(9) { CellState.EMPTY }
         currentPlayer.value = Player.X
-        gameStatus.value = GameStatus.PlayerTurn(Player.X)
+        
+        if (gameMode.value == GameMode.ONLINE) {
+            if (isConnected.value) {
+                // If we're host, and someone is joined, or if we joined
+                gameStatus.value = if (isHost.value && onlinePlayer.value == Player.X) GameStatus.Initial else GameStatus.PlayerTurn(Player.X) 
+                // Wait, if it's a restart, we both know we are connected.
+                gameStatus.value = GameStatus.PlayerTurn(Player.X)
+            } else {
+                gameStatus.value = GameStatus.Initial
+            }
+        } else {
+            gameStatus.value = GameStatus.PlayerTurn(Player.X)
+        }
     }
 
     private fun loadData() {
