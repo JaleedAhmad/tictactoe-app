@@ -8,6 +8,7 @@ local.properties
 # App-specific
 app/build/
 app/*.iml
+app/google-services.json
 
 # Gradle
 .gradle/
