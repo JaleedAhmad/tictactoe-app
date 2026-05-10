@@ -26,10 +26,15 @@ jobs:
 
       - name: Create google-services.json
         run: |
-          echo "${{ secrets.GOOGLE_SERVICES_JSON }}" > b64.txt
-          base64 --decode b64.txt > app/google-services.json
-          echo "File size of google-services.json:"
-          wc -c < app/google-services.json
+          SECRET_CONTENT="${{ secrets.GOOGLE_SERVICES_JSON }}"
+          if [[ "$SECRET_CONTENT" == "{"* ]]; then
+            echo "Detected raw JSON"
+            echo "$SECRET_CONTENT" > app/google-services.json
+          else
+            echo "Detected Base64"
+            echo "$SECRET_CONTENT" | base64 --decode > app/google-services.json
+          fi
+          echo "File size created: $(wc -c < app/google-services.json) bytes"
 
       - name: Build with Gradle
         run: ./gradlew assembleDebug
